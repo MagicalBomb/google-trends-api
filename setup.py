@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name='google-trends-api',
-    version='0.1.0',
+    version='0.1.1',
     packages=['google_trends_api'],
     # package_dir={'': ''},
     url='',

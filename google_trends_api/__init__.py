@@ -5,7 +5,7 @@ from typing import List, Union, Tuple
 import httpx
 
 from google_trends_api import constants, utils
-from utils import datetime_range
+from google_trends_api.utils import datetime_range
 
 
 class GoogleTrendsApi:
