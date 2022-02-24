@@ -30,6 +30,8 @@ class TestGoogleTrendsApi:
         assert widget != {}
         assert widget['id'] == constants.WidgetId.TIME_SERIES
 
+        await google_trends_api_obj.aclose()
+
     async def test__get_widget_with_custom_time_range(self, google_trends_api_obj):
         start_datetime = datetime.datetime(year=2022, month=1, day=23, hour=0)
         end_datetime = datetime.datetime(year=2022, month=1, day=30, hour=23)
@@ -40,6 +42,7 @@ class TestGoogleTrendsApi:
             custom_time_range=(start_datetime, end_datetime))
         assert widget != {}
         assert widget['id'] == constants.WidgetId.TIME_SERIES
+        await google_trends_api_obj.aclose()
 
     async def test_get_hourly_data(self, google_trends_api_obj):
         start_datetime = datetime.datetime(year=2022, month=1, day=20, hour=0)
@@ -47,3 +50,4 @@ class TestGoogleTrendsApi:
         async for time, value in google_trends_api_obj.get_hourly_data('nft', start_datetime, end_datetime):
             assert isinstance(time, int) and time > 1000000000
             assert isinstance(value, int) and value <= 100
+        await google_trends_api_obj.aclose()

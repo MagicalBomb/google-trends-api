@@ -19,6 +19,9 @@ class GoogleTrendsApi:
             cookies=self._get_cookies(),
             proxies=proxies)
 
+    async def aclose(self):
+        await self.http_client.aclose()
+
     def _get_cookies(self) -> dict:
         resp = httpx.get(
             url='https://trends.google.com/',

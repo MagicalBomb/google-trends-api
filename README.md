@@ -21,6 +21,7 @@ async def main():
         end_datetime=datetime.datetime(2022, 1, 20, 12),
     ):
         print(timestamp, trends_value)
+    await api.aclose()
 
 asyncio.run(main())
 ```
