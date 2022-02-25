@@ -4,21 +4,26 @@ import datetime
 def datetime_range(
         start: datetime.datetime,
         end: datetime.datetime,
-        step: datetime.timedelta
+        step: datetime.timedelta,
+        can_overflow: bool = False,
 ):
     """
-    Generator that yields datetime objects from start to end.
+    Generator that yields datetime objects [start, end) in steps of step.
+    If can_overflow is True, the generator will yield the end value
     """
-    while start < end:
-        yield start
-        start += step
-
-    yield end
+    current = start
+    while current < end:
+        yield current
+        current += step
+    if can_overflow:
+        yield current
 
 
 def parse_timezone_in_google_way(dt: datetime.datetime) -> int:
     """
     Returns the timezone offset in minutes from UTC.
+
+    If dt.tzinfo is None, use local timezone.
     """
     utc_tz = datetime.timezone.utc
     if dt.tzinfo is None:
