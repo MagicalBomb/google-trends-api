@@ -16,7 +16,7 @@ def datetime_range(
     yield end
 
 
-def parse_timezone(dt: datetime.datetime) -> int:
+def parse_timezone_in_google_way(dt: datetime.datetime) -> int:
     """
     Returns the timezone offset in minutes from UTC.
     """
@@ -25,4 +25,4 @@ def parse_timezone(dt: datetime.datetime) -> int:
         dt = dt.astimezone()
 
     tz_info = dt.tzinfo
-    return int(tz_info.utcoffset(None).total_seconds() / 60)
+    return -int(tz_info.utcoffset(None).total_seconds() / 60)

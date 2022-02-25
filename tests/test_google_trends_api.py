@@ -2,20 +2,16 @@ import datetime
 import os
 
 import pytest
-from loguru import logger
 
 import google_trends_api
 from google_trends_api import constants
 
-PROXIES = 'http://localhost:10001'
 
 
 class TestGoogleTrendsApi:
     @pytest.fixture
     def google_trends_api_obj(self):
-        return google_trends_api.GoogleTrendsApi(
-            proxies=PROXIES,
-        )
+        return google_trends_api.GoogleTrendsApi()
 
     def test__get_cookies(self, google_trends_api_obj):
         cookies = google_trends_api_obj._get_cookies()
