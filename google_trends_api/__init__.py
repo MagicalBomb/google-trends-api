@@ -1,129 +1,70 @@
-import datetime
 import json
+from datetime import datetime, timezone, timedelta
 from typing import List, Union, Tuple
 
 import httpx
 
-from google_trends_api import constants, utils
+from google_trends_api import constants, utils, _api
 from google_trends_api.utils import datetime_range
 
 
-class GoogleTrendsApi:
-    def __init__(self, *, host_language='en-US', proxies=None):
-        """
-        timezone: timezone offset in minutes.
-        """
-        self.host_language = host_language
-        self.proxies = proxies
-        self.http_client = httpx.AsyncClient(
-            cookies=self._get_cookies(),
-            proxies=proxies)
+async def hourly_data(
+        keyword: str,
+        start_datetime: datetime,
+        end_datetime: datetime,
+        tzinfo: timezone = None,
+        *,
+        geo: str = "",
+        host_language: str = "en-US",
+):
+    """
+    Get hourly google trends data for a keyword between start_datetime and end_datetime.
 
-    async def aclose(self):
-        await self.http_client.aclose()
+    :param keyword: The keyword to get data for.
+    :param start_datetime: The start datetime to get data for.
+    :param end_datetime: The end datetime to get data for.
+    :param tzinfo: The timezone to get data for. Defaults to local timezone.
 
-    def _get_cookies(self) -> dict:
-        resp = httpx.get(
-            url='https://trends.google.com/',
-            params={'geo': 'US'},  # Seems keep the US is always the best choice.
-            follow_redirects=True,
-            proxies=self.proxies)
-        return {k: v for k, v in resp.cookies.items() if k == 'NID'}
+    @return: yield (timestamp, value)
+    """
 
-    async def _get_widget(
-            self,
+    # Currently the only way to get hourly data is requesting api with time range of 7 day every time
+    cookies = await _api.get_cookies()
+
+    if not tzinfo:
+        # Set tzinfo to local timezone
+        tzinfo = start_datetime.astimezone().tzinfo
+        timezone_offset = utils.parse_timezone_in_google_way(start_datetime)
+    else:
+        timezone_offset = -int(tzinfo.utcoffset(None).total_seconds() / 60)
+
+    start_datetime = start_datetime + timedelta(minutes=timezone_offset)
+    start_datetime = start_datetime.replace(tzinfo=tzinfo)
+    end_datetime = end_datetime + timedelta(minutes=timezone_offset)
+    end_datetime = end_datetime.replace(tzinfo=tzinfo)
+
+    step = timedelta(days=7)
+    for dt in utils.datetime_range(start_datetime, end_datetime, step, can_overflow=True):
+        widgets = await _api.get_widgets(
             keyword,
-            widget_id: constants.WidgetId,
-            timezone: int,
-            time_range: constants.TimeRange = None,
-            custom_time_range: Tuple[datetime.datetime, datetime.datetime] = None,
-            *,
-            frequency: constants.Frequency = constants.Frequency.HOURLY,
-            geo: str = "",  # Country abbreviation. empty string means worldwide
-    ) -> dict:
-        """
-        :param timezone: timezone offset in minutes.
+            timezone_offset=timezone_offset,
+            cookies=cookies,
+            custom_time_range=(dt, dt + step),
+            frequency=constants.Frequency.HOURLY,
+            geo=geo,
+            host_language=host_language,
+        )
 
-        Notice that the difference bewteen start_datetime and end_datetime must be less than 8 days, if frequency is HOURLY.
-        """
-        if time_range is None and custom_time_range is None:
-            raise ValueError('time_range or custom_time_range must be specified')
+        js = await _api.interest_over_time(
+            cookies=cookies,
+            widgets=widgets,
+            timezone_offset=timezone_offset,
+            host_language=host_language,
+        )
+        hourly_items = js['default']['timelineData']
 
-        if time_range:
-            param_req = {
-                'comparisonItem': [{"keyword": keyword, "geo": geo, "time": time_range}],
-                "category": 0,
-                "property": "",
-            }
-        else:
-            if frequency == constants.Frequency.DAILY:
-                start_datetime_str, end_datetime_str = (
-                    custom_time_range[0].strftime('%Y-%m-%d'),
-                    custom_time_range[1].strftime('%Y-%m-%d')
-                )
-            elif frequency == constants.Frequency.HOURLY:
-                start_datetime_str, end_datetime_str = (
-                    custom_time_range[0].strftime('%Y-%m-%dT%H'),
-                    custom_time_range[1].strftime('%Y-%m-%dT%H')
-                )
-            param_req = {
-                "comparisonItem": [
-                    {"keyword": keyword, "geo": geo, "time": "{} {}".format(start_datetime_str, end_datetime_str)}
-                ],
-                "category": 0,
-                "property": ""}
+        for item in hourly_items:
+            timestamp = int(item['time'])
+            if item['hasData'][0] and datetime.fromtimestamp(timestamp, tz=tzinfo) <= (end_datetime - timedelta(minutes=timezone_offset)):
+                yield timestamp, item['value'][0]
 
-        query = {
-            'hl': self.host_language,
-            'tz': timezone,
-            'req': param_req,
-        }
-
-        resp = await self.http_client.get(constants.API.EXPLORE, params=query)
-        js = json.loads(resp.text[5:])
-        for widget in js['widgets']:
-            if widget['id'] == widget_id:
-                return widget
-
-    async def get_hourly_data(
-            self,
-            keyword: str,
-            start_datetime: datetime.datetime,
-            end_datetime: datetime.datetime,
-            *,
-            geo: str = "",  # Country abbreviation. empty string means worldwide
-    ) -> Tuple[int, int]:
-        """
-        :param keyword:
-        :param start_datetime
-        :param end_datetime
-        :return: yield (timestamp, hourly_trends)
-
-        datetime.tzinfo is used to specify the timezone.
-        If both start_datetime and end_datetime all specify timezone, the timezone of start_datetime will be used.
-        If both start_datetime and end_datetime do not specify timezone, the timezone of the current system will be used.
-        """
-        timedelta = end_datetime - start_datetime
-        if timedelta.total_seconds() < 3600:
-            raise ValueError('start_datetime must be earlier than end_datetime at least 1 hour')
-
-        # Get timezone in minutes
-        timezone: int = utils.parse_timezone(start_datetime if start_datetime.tzinfo else end_datetime)
-
-        # Get hourly data
-        step = datetime.timedelta(days=7)
-        for left in datetime_range(start_datetime, end_datetime, step):
-            right = min(left + step, end_datetime)
-            widget = await self._get_widget(keyword, constants.WidgetId.TIME_SERIES, timezone=timezone, geo=geo, custom_time_range=(left, right))
-            query = {
-                'hl': self.host_language,
-                'tz': timezone,
-                'token': widget['token'],
-                'req': widget['request'],
-            }
-            resp = await self.http_client.get(constants.API.TRENDS_OVER_TIME, params=query)
-            js = json.loads(resp.text[5:])
-
-            # Yield hourly data
-            for item in js['default']['timelineData']:
-                yield int(item['time']), item['value'][0]

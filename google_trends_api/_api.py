@@ -63,13 +63,9 @@ async def get_widgets(
                     custom_time_range[1].strftime('%Y-%m-%d')
                 )
             elif frequency == constants.Frequency.HOURLY:
-                # start_datetime_str, end_datetime_str = (
-                #     custom_time_range[0].strftime('%Y-%m-%dT%H'),
-                #     custom_time_range[1].strftime('%Y-%m-%dT%H')
-                # )
                 start_datetime_str, end_datetime_str = (
-                    custom_time_range[0].strftime('2022-1-10T10'),
-                    custom_time_range[1].strftime('2022-1-15T10')
+                    custom_time_range[0].strftime('%Y-%m-%dT%H'),
+                    custom_time_range[1].strftime('%Y-%m-%dT%H')
                 )
             param_req = {
                 "comparisonItem": [
