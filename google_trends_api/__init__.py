@@ -1,11 +1,6 @@
-import json
 from datetime import datetime, timezone, timedelta
-from typing import List, Union, Tuple
-
-import httpx
 
 from google_trends_api import constants, utils, _api
-from google_trends_api.utils import datetime_range
 
 
 async def hourly_data(
@@ -28,7 +23,7 @@ async def hourly_data(
     @return: yield (timestamp, value)
     """
 
-    # Currently the only way to get hourly data is requesting api with time range of 7 day every time
+    # Currently, the only way to get hourly data is requesting api with time range of 7 day every time
     cookies = await _api.get_cookies()
 
     if not tzinfo:
