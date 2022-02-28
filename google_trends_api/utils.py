@@ -31,3 +31,10 @@ def parse_timezone_in_google_way(dt: datetime.datetime) -> int:
 
     tz_info = dt.tzinfo
     return -int(tz_info.utcoffset(None).total_seconds() / 60)
+
+
+async def alist(async_gen):
+    lst = []
+    async for item in async_gen:
+        lst.append(item)
+    return lst
