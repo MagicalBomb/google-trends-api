@@ -1,20 +1,74 @@
 from datetime import datetime, timezone, timedelta
+from functools import partial
 
 from google_trends_api import constants, utils, _api
 from google_trends_api.utils import datetime_range, alist
 
 
-async def _hourly_data(
+async def _seven_days_hourly_data(
         keyword: str,
-        start_datetime: datetime,
-        end_datetime: datetime,
-        tzinfo: timezone = None,
+        start_dt: datetime,
+        tz: timezone,
         *,
+        cookies: dict = None,
         geo: str = "",
         host_language: str = "en-US",
 ):
     """
-    Get hourly google trends data for a keyword in every 7 day period.
+    Get 7 days google trends data for a keyword. [start_datetime, start_datetime + 7 days)
+    This seems the only way to fetch hourly data by using google trends official pi
+
+    :param keyword: The keyword to get data for.
+    :param start_datetime: The start datetime to get data for.
+    :param tzinfo: The timezone to get data for. Defaults to local timezone.
+
+    @return: yield (timestamp, value)
+    """
+    cookies = cookies or await _api.get_cookies()
+    tz_offset = -int(tz.utcoffset(None).total_seconds() / 60)
+    end_dt = (start_dt + timedelta(days=7))
+
+    start_dt = start_dt + timedelta(minutes=tz_offset)
+    end_dt = end_dt + timedelta(minutes=tz_offset)
+    start_dt = start_dt.replace(tzinfo=tz)
+    end_dt = end_dt.replace(tzinfo=tz)
+
+    widgets = await _api.get_widgets(
+        keyword,
+        timezone_offset=tz_offset,
+        cookies=cookies,
+        custom_time_range=(start_dt, end_dt),
+        frequency=constants.Frequency.HOURLY,
+        geo=geo,
+        host_language=host_language,
+    )
+
+    js = await _api.interest_over_time(
+        cookies=cookies,
+        widgets=widgets,
+        timezone_offset=tz_offset,
+        host_language=host_language,
+    )
+    hourly_items = js['default']['timelineData']
+
+    for item in hourly_items:
+        timestamp = int(item['time'])
+        if item['hasData'][0] and datetime.fromtimestamp(timestamp, tz=tz) < (end_dt - timedelta(minutes=tz_offset)):
+            yield timestamp, item['value'][0]
+
+
+async def _hourly_data(
+        keyword: str,
+        start_dt: datetime,
+        end_dt: datetime,
+        tz: timezone,
+        *,
+        cookies: dict = None,
+        geo: str = "",
+        host_language: str = "en-US",
+):
+    """
+    Get hourly google trends data for a keyword in every 7 day period. [start_datetime, end_datetime)
     Note hourly trends value is relative to their period, not a absolute value.
 
     :param keyword: The keyword to get data for.
@@ -26,44 +80,24 @@ async def _hourly_data(
     """
 
     # Currently, the only way to get hourly data is requesting api with time range of 7 day every time
-    cookies = await _api.get_cookies()
+    cookies = cookies or await _api.get_cookies()
 
-    if not tzinfo:
-        # Set tzinfo to local timezone
-        tzinfo = start_datetime.astimezone().tzinfo
-        timezone_offset = utils.parse_timezone_in_google_way(start_datetime)
-    else:
-        timezone_offset = -int(tzinfo.utcoffset(None).total_seconds() / 60)
-
-    start_datetime = start_datetime + timedelta(minutes=timezone_offset)
-    start_datetime = start_datetime.replace(tzinfo=tzinfo)
-    end_datetime = end_datetime + timedelta(minutes=timezone_offset)
-    end_datetime = end_datetime.replace(tzinfo=tzinfo)
+    start_dt = start_dt.replace(tzinfo=tz)
+    end_dt = end_dt.replace(tzinfo=tz)
+    end_ts = int(end_dt.timestamp())
 
     step = timedelta(days=7)
-    for dt in utils.datetime_range(start_datetime, end_datetime, step, can_overflow=True):
-        widgets = await _api.get_widgets(
-            keyword,
-            timezone_offset=timezone_offset,
-            cookies=cookies,
-            custom_time_range=(dt, dt + step),
-            frequency=constants.Frequency.HOURLY,
-            geo=geo,
-            host_language=host_language,
-        )
-
-        js = await _api.interest_over_time(
-            cookies=cookies,
-            widgets=widgets,
-            timezone_offset=timezone_offset,
-            host_language=host_language,
-        )
-        hourly_items = js['default']['timelineData']
-
-        for item in hourly_items:
-            timestamp = int(item['time'])
-            if item['hasData'][0] and datetime.fromtimestamp(timestamp, tz=tzinfo) < (end_datetime - timedelta(minutes=timezone_offset)):
-                yield timestamp, item['value'][0]
+    for dt in utils.datetime_range(start_dt, end_dt, step, can_overflow=True):
+        async for timestamp, value in _seven_days_hourly_data(
+                keyword,
+                dt,
+                tz,
+                cookies=cookies,
+                geo=geo,
+                host_language=host_language,
+        ):
+            if timestamp < end_ts:
+                yield timestamp, value
 
 
 async def seven_days_data(
