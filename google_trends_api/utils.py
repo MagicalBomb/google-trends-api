@@ -38,3 +38,9 @@ async def alist(async_gen):
     async for item in async_gen:
         lst.append(item)
     return lst
+
+
+def find_index(lst, key):
+    for i, item in enumerate(lst):
+        if key(item):
+            return i

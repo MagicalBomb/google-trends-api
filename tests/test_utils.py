@@ -19,3 +19,8 @@ def test_datetime_range():
         datetime(2020, 1, 5),
         datetime(2020, 1, 9),
     ]
+
+
+def test_find_index():
+    lst = [1, 2, 3, 4, 5]
+    assert utils.find_index(lst, lambda x: x >= 3) == 2
