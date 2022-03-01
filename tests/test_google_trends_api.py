@@ -2,7 +2,7 @@ from datetime import datetime, timezone, timedelta
 
 import pytest
 
-from google_trends_api import _hourly_data, seven_days_data, hourly_data, _seven_days_hourly_data
+from google_trends_api import _hourly_data, hourly_data, _seven_days_hourly_data
 from google_trends_api.utils import alist
 
 
@@ -24,40 +24,39 @@ async def test__hourly_data():
     start_datetime = datetime(2022, 1, 10, 10)
     end_datetime = datetime(2022, 1, 13, 14)
     tzinfo = timezone(timedelta(hours=6))
-    item_list = []
-    async for timestamp, value in _hourly_data(
+    items_list = []
+    async for _7days_items in _hourly_data(
         keyword='nft',
         start_dt=start_datetime,
         end_dt=end_datetime,
         tz=tzinfo,
     ):
-        item_list.append((timestamp, value))
+        items_list.append(_7days_items)
 
-    first_item = item_list[0]
+    first_item = items_list[0][0]
     assert datetime.fromtimestamp(first_item[0], tz=tzinfo) == datetime(2022, 1, 10, 10, tzinfo=tzinfo)
 
-    last_item = item_list[-1]
+    last_item = items_list[0][-1]
     assert datetime.fromtimestamp(last_item[0], tz=tzinfo) == datetime(2022, 1, 13, 13, tzinfo=tzinfo)
 
     # Difference more than 7 days
     start_datetime = datetime(2022, 1, 9, 10)
     end_datetime = datetime(2022, 1, 19, 20)
     tzinfo = timezone(timedelta(hours=6))
-    item_list = []
-    async for timestamp, value in _hourly_data(
+    items_list = []
+    async for _7days_items in _hourly_data(
         keyword='nft',
         start_dt=start_datetime,
         end_dt=end_datetime,
         tz=tzinfo,
     ):
-        item_list.append((timestamp, value))
+        items_list.append(_7days_items)
 
-    first_item = item_list[0]
+    first_item = items_list[0][0]
     assert datetime.fromtimestamp(first_item[0], tz=tzinfo) == datetime(2022, 1, 9, 10, tzinfo=tzinfo)
 
-    last_item = item_list[-1]
+    last_item = items_list[-1][-1]
     assert datetime.fromtimestamp(last_item[0], tz=tzinfo) == datetime(2022, 1, 19, 19, tzinfo=tzinfo)
-
 
 
 @pytest.mark.asyncio

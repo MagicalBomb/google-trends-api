@@ -1,5 +1,6 @@
 from datetime import datetime, timezone, timedelta
 from functools import partial
+from typing import List
 
 from google_trends_api import constants, utils, _api
 from google_trends_api.utils import datetime_range, alist
@@ -66,7 +67,7 @@ async def _hourly_data(
         cookies: dict = None,
         geo: str = "",
         host_language: str = "en-US",
-):
+) -> List[list]:
     """
     Get hourly google trends data for a keyword in every 7 day period. [start_datetime, end_datetime)
     Note hourly trends value is relative to their period, not a absolute value.
@@ -88,16 +89,20 @@ async def _hourly_data(
 
     step = timedelta(days=7)
     for dt in utils.datetime_range(start_dt, end_dt, step, can_overflow=True):
-        async for timestamp, value in _seven_days_hourly_data(
-                keyword,
-                dt,
-                tz,
-                cookies=cookies,
-                geo=geo,
-                host_language=host_language,
-        ):
-            if timestamp < end_ts:
-                yield timestamp, value
+        _7days_items = await alist(_seven_days_hourly_data(
+            keyword,
+            dt,
+            tz,
+            cookies=cookies,
+            geo=geo,
+            host_language=host_language,
+        ))
+        if _7days_items[-1][0] < end_ts:
+            yield _7days_items
+        else:
+            index = utils.find_index(_7days_items, lambda item: item[0] >= end_ts)
+            if index != 0:  # Avoid yield [], it's meaningless and looks foolish
+                yield _7days_items[:index]
 
 
 async def seven_days_data(
