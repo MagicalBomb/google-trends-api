@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name='google-trends-api',
-    version='1.0.1',
+    version='2.0.0',
     packages=['google_trends_api'],
     # package_dir={'': ''},
     url='',
@@ -10,5 +10,5 @@ setup(
     author='Magicalbomb',
     author_email='17826800084g@gmail.com',
     description='Async python wrapper for google trends api',
-    install_requires=['httpx']
+    install_requires=['httpx', 'tenacity']
 )

@@ -60,12 +60,25 @@ async def test__hourly_data():
 
 
 @pytest.mark.asyncio
-async def test_seven_days_data():
-    lst = await alist(seven_days_data(
+async def test_hourly_data():
+    lst_1 = await alist(_seven_days_hourly_data(
         keyword='nft',
-        start_datetime=datetime(2020, 1, 1, 1),
-        tzinfo=timezone(timedelta(hours=8)),
+        start_dt=datetime(2020, 1, 1, 1),
+        tz=timezone(timedelta(hours=8)),
     ))
 
-    assert lst[0][0] == datetime(2020, 1, 1, 1).timestamp()
-    assert lst[-1][0] == datetime(2020, 1, 8, 0).timestamp()
+    lst_2 = await alist(_seven_days_hourly_data(
+        keyword='nft',
+        start_dt=datetime(2020, 1, 1, 1) + timedelta(days=7) - timedelta(hours=1),
+        tz=timezone(timedelta(hours=8)),
+    ))
+
+    lst_3 = await hourly_data(
+        keyword='nft',
+        start_dt=datetime(2020, 1, 1, 1),
+        end_dt=datetime(2020, 1, 1, 1) + timedelta(days=14) - timedelta(hours=1),
+        tz=timezone(timedelta(hours=8)),
+    )
+
+    ratio = lst_1[-1][1] / lst_2[0][1]
+    assert abs(ratio * lst_2[-1][1] - lst_3[-1][1]) < 0.1

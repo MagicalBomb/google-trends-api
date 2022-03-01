@@ -1,6 +1,7 @@
 from datetime import datetime, timezone, timedelta
-from functools import partial
 from typing import List
+
+from tenacity import retry, stop_after_attempt, wait_fixed
 
 from google_trends_api import constants, utils, _api
 from google_trends_api.utils import datetime_range, alist
@@ -105,43 +106,74 @@ async def _hourly_data(
                 yield _7days_items[:index]
 
 
-async def seven_days_data(
-    keyword: str,
-    start_datetime: datetime,
-    tzinfo: timezone = None,
-    *,
-    geo: str = "",
-    host_language: str = "en-US",
-):
-    """
-    Get 7 day google trends data for a keyword
-
-    :param keyword: The keyword to get data for.
-    :param start_datetime: The start datetime to get data for.
-    :param tzinfo: The timezone to get data for. Defaults to local timezone.
-
-    @return: yield (timestamp, value)
-    """
-
-    async for time, value in _hourly_data(keyword, start_datetime, start_datetime + timedelta(days=7), tzinfo=tzinfo, geo=geo, host_language=host_language):
-        yield time, value
-
-
 async def hourly_data(
         keyword: str,
-        start_datetime: datetime,
-        end_datetime: datetime,
-        tzinfo: timezone = None,
+        start_dt: datetime,
+        end_dt: datetime,
+        tz: timezone = None,
         *,
+        cookies: dict = None,
         geo: str = "",
         host_language: str = "en-US",
+        retries: int = 3,
 ):
     """
     Get hourly google trends data for a keyword.
-    Note hourly trends value is relative to the first 7 days of the start_datetime
+    All trends value are based on the first 7 days from start_datetime.
     """
-    timedelta_7days = timedelta(days=7)
-    timedelta_1hour = timedelta(hours=1)
+    start_dt = start_dt.replace(tzinfo=tz)
+    end_dt = end_dt.replace(tzinfo=tz)
+    cookies = cookies or await _api.get_cookies()
 
-    first_7days = await alist(seven_days_data(keyword, start_datetime, tzinfo, geo=geo, host_language=host_language))
-    second_7days = await alist(seven_days_data(keyword, start_datetime + timedelta_7days, tzinfo, geo=geo, host_language=host_language))
+    _SEVEN_DAYS = timedelta(days=7)
+    _ONE_HOUR = timedelta(hours=1)
+
+    @retry(stop=stop_after_attempt(retries), wait=wait_fixed(3))
+    async def _get_7days_hourly_data(_start_dt):
+        async for item in _seven_days_hourly_data(
+            keyword=keyword,
+            start_dt=_start_dt,
+            tz=tz,
+            cookies=cookies,
+            geo=geo,
+            host_language=host_language,
+        ):
+            yield item
+
+    def _get_last_dt(_result_item_lst) -> datetime:
+        return datetime.fromtimestamp(_result_item_lst[-1][0], tz=tz)
+    # ==================== Above is util ====================
+    current_dt = start_dt
+    result_item_lst = []
+
+    # First
+    current_group = await alist(_get_7days_hourly_data(_start_dt=current_dt))
+    ratio = 1
+    result_item_lst.extend(
+        [(t, v * ratio) for t, v in current_group]
+    )
+
+    while True:
+        current_dt = _get_last_dt(result_item_lst)
+        if current_dt >= end_dt:
+            break
+
+        current_group = await alist(_get_7days_hourly_data(
+            _start_dt=current_dt,
+        ))
+        overlaped_item = result_item_lst[-1]
+        if overlaped_item[0] != current_group[0][0]:
+            raise ValueError(f"Expected timestamp {overlaped_item[0]} to be equal to {current_group[0][0]}")
+
+        ratio = overlaped_item[1] / current_group[0][1]
+        result_item_lst.extend(
+            [(t, v * ratio) for t, v in current_group]
+        )
+
+    end_dt = end_dt.replace(tzinfo=tz)
+    index = utils.find_index(result_item_lst, lambda item: item[0] >= int(end_dt.timestamp()))
+    result_item_lst = result_item_lst[:index]
+
+    # Normalize to [0, 100]
+    max_value = max(v for _, v in result_item_lst)
+    return [(t, v / max_value * 100) for t, v in result_item_lst]
