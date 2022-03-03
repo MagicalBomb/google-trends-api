@@ -19,11 +19,10 @@ async def get_cookies(geo='US'):
 
     :param geo: Ther is no need to modify this param.
     """
-    async with httpx.AsyncClient(verify=False, timeout=30) as client:
-        resp = httpx.get(
+    async with httpx.AsyncClient(follow_redirects=True, verify=False, timeout=30) as client:
+        resp = await client.get(
             url='https://trends.google.com/',
-            params={'geo': geo},
-            follow_redirects=True)
+            params={'geo': geo})
         return {k: v for k, v in resp.cookies.items() if k == 'NID'}
 
 
