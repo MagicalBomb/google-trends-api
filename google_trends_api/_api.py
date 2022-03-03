@@ -19,7 +19,7 @@ async def get_cookies(geo='US'):
 
     :param geo: Ther is no need to modify this param.
     """
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(verify=False) as client:
         resp = httpx.get(
             url='https://trends.google.com/',
             params={'geo': geo},
@@ -50,7 +50,7 @@ async def get_widgets(
 
     Notice that if you are in the China (UTC+8), the timezone_offset should be -480 (note NOT 480, Google uses timezone this way...)
     """
-    async with httpx.AsyncClient(cookies=cookies) as client:
+    async with httpx.AsyncClient(cookies=cookies, verify=False) as client:
         if time_range is None and custom_time_range is None:
             raise ValueError('time_range or custom_time_range must be specified')
 
@@ -107,7 +107,7 @@ async def interest_over_time(
 
     Notice that if you are in the China (UTC+8), the timezone_offset should be -480 (note NOT 480, Google uses timezone this way...)
     """
-    async with httpx.AsyncClient(cookies=cookies) as client:
+    async with httpx.AsyncClient(cookies=cookies, verify=False) as client:
         time_series_widget = [w for w in widgets if w['id'] == constants.WidgetId.TIME_SERIES][0]
 
         query = {

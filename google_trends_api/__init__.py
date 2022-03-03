@@ -1,3 +1,4 @@
+import os
 from datetime import datetime, timezone, timedelta
 from typing import List
 
@@ -120,7 +121,8 @@ async def hourly_data(
         geo: str = "",
         host_language: str = "en-US",
         retries: int = -1,
-        timeout: int = 600
+        timeout: int = 600,
+        proxy: str = None,
 ):
     """
     Get hourly google trends data for a keyword.
@@ -131,6 +133,8 @@ async def hourly_data(
     start_dt = start_dt.replace(tzinfo=tz)
     end_dt = end_dt.replace(tzinfo=tz)
     cookies = cookies or await _api.get_cookies()
+    if proxy:
+        os.environ['ALL_PROXY'] = proxy
 
     _SEVEN_DAYS = timedelta(days=7)
     _ONE_HOUR = timedelta(hours=1)
