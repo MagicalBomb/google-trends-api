@@ -3,7 +3,8 @@ from typing import List
 
 import loguru
 from loguru import logger
-from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_exception_type, stop_never, wait_incrementing
+from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_exception_type, stop_never, wait_incrementing, \
+    stop_after_delay
 
 from google_trends_api import constants, utils, _api
 from google_trends_api._api import RateLimit
@@ -119,6 +120,7 @@ async def hourly_data(
         geo: str = "",
         host_language: str = "en-US",
         retries: int = -1,
+        timeout: int = 600
 ):
     """
     Get hourly google trends data for a keyword.
@@ -148,7 +150,7 @@ async def hourly_data(
 
     @retry(
         retry=retry_if_exception_type(RateLimit),
-        stop=stop_after_attempt(retries) if retries >= 0 else stop_never,
+        stop=(stop_after_attempt(retries) if retries >= 0 else stop_never) | stop_after_delay(timeout),
         wait=wait_fixed(10),
         after=after_log,
         reraise=True,
