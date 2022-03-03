@@ -9,6 +9,10 @@ import httpx
 from google_trends_api import constants
 
 
+class RateLimit(Exception):
+    pass
+
+
 async def get_cookies(geo='US'):
     """
     Get cookies for Google Trends API.
@@ -81,8 +85,11 @@ async def get_widgets(
         }
 
         resp = await client.get(constants.API.EXPLORE, params=query)
-        js = json.loads(resp.text[5:])
-        return js['widgets']
+        if resp.status_code == 200:
+            js = json.loads(resp.text[5:])
+            return js['widgets']
+        elif resp.status_code == 429:
+            raise RateLimit(resp.text)
 
 
 async def interest_over_time(
