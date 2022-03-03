@@ -1,3 +1,4 @@
+import time
 from datetime import datetime, timezone, timedelta
 
 import pytest
@@ -66,6 +67,9 @@ async def test_hourly_data():
         start_dt=datetime(2020, 1, 1, 1),
         tz=timezone(timedelta(hours=8)),
     ))
+
+    # avoid being blocked by rate-limit
+    time.sleep(5)
 
     lst_2 = await alist(_seven_days_hourly_data(
         keyword='nft',

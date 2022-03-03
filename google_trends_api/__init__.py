@@ -1,9 +1,12 @@
 from datetime import datetime, timezone, timedelta
 from typing import List
 
-from tenacity import retry, stop_after_attempt, wait_fixed
+import loguru
+from loguru import logger
+from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_exception_type, stop_never, wait_incrementing
 
 from google_trends_api import constants, utils, _api
+from google_trends_api._api import RateLimit
 from google_trends_api.utils import datetime_range, alist
 
 
@@ -115,11 +118,13 @@ async def hourly_data(
         cookies: dict = None,
         geo: str = "",
         host_language: str = "en-US",
-        retries: int = 3,
+        retries: int = -1,
 ):
     """
     Get hourly google trends data for a keyword.
     All trends value are based on the first 7 days from start_datetime.
+
+    :param retries: The number of retries to get data. -1 means infinite retries.
     """
     start_dt = start_dt.replace(tzinfo=tz)
     end_dt = end_dt.replace(tzinfo=tz)
@@ -128,26 +133,45 @@ async def hourly_data(
     _SEVEN_DAYS = timedelta(days=7)
     _ONE_HOUR = timedelta(hours=1)
 
-    @retry(stop=stop_after_attempt(retries), wait=wait_fixed(3))
+    from tenacity import _utils
+
+    def after_log(retry_state):
+        sec_format: str = "%0.3f"
+        wait_fixed_seconds = retry_state.retry_object.wait.wait_fixed
+
+        logger.warning(
+            f"Google Trends Rate limit has been hit. Retrying in {wait_fixed_seconds} seconds. "
+            f"fn={_utils.get_callback_name(retry_state.fn)} "
+            f"attempt_count={retry_state.attempt_number} "
+            f"seconds_since_start={sec_format % retry_state.seconds_since_start}s"
+        )
+
+    @retry(
+        retry=retry_if_exception_type(RateLimit),
+        stop=stop_after_attempt(retries) if retries >= 0 else stop_never,
+        wait=wait_fixed(10),
+        after=after_log,
+        reraise=True,
+    )
     async def _get_7days_hourly_data(_start_dt):
-        async for item in _seven_days_hourly_data(
+        return await alist(_seven_days_hourly_data(
             keyword=keyword,
             start_dt=_start_dt,
             tz=tz,
             cookies=cookies,
             geo=geo,
             host_language=host_language,
-        ):
-            yield item
+        ))
 
     def _get_last_dt(_result_item_lst) -> datetime:
         return datetime.fromtimestamp(_result_item_lst[-1][0], tz=tz)
+
     # ==================== Above is util ====================
     current_dt = start_dt
     result_item_lst = []
 
     # First
-    current_group = await alist(_get_7days_hourly_data(_start_dt=current_dt))
+    current_group = await _get_7days_hourly_data(_start_dt=current_dt)
     ratio = 1
     result_item_lst.extend(
         [(t, v * ratio) for t, v in current_group]
@@ -158,9 +182,7 @@ async def hourly_data(
         if current_dt >= end_dt:
             break
 
-        current_group = await alist(_get_7days_hourly_data(
-            _start_dt=current_dt,
-        ))
+        current_group = await _get_7days_hourly_data(_start_dt=current_dt)
         overlaped_item = result_item_lst[-1]
         if overlaped_item[0] != current_group[0][0]:
             raise ValueError(f"Expected timestamp {overlaped_item[0]} to be equal to {current_group[0][0]}")
