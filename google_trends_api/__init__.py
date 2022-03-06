@@ -185,7 +185,8 @@ async def hourly_data(
 
     while True:
         current_dt = _get_last_dt(result_item_lst)
-        if current_dt >= end_dt:
+        # Round down end_dt to hour
+        if current_dt >= end_dt.replace(microsecond=0, second=0, minute=0):
             break
 
         current_group = await _get_7days_hourly_data(_start_dt=current_dt)
