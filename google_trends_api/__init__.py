@@ -131,7 +131,7 @@ async def hourly_data(
     :param retries: The number of retries to get data. -1 means infinite retries.
     """
     start_dt = start_dt.replace(tzinfo=tz)
-    end_dt = end_dt.replace(tzinfo=tz)
+    end_dt = min(datetime.now(tz=tz), end_dt.replace(tzinfo=tz))
     cookies = cookies or await _api.get_cookies()
     if proxy:
         os.environ['ALL_PROXY'] = proxy
