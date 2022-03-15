@@ -128,14 +128,20 @@ async def hourly_data(
     Get hourly google trends data for a keyword.
     All trends value are based on max value between [start_dt, end_dt).
 
+    # Note
+
     [(ts_1, 50), (ts_2, 100), (ts_3, 78)] returned by hourly_data means:
     At ts_1, the search volume is half of search volume of ts_2.
     At ts_3, the search volume is 78% of search volume of ts_2.
 
+    (1647342000, 50) means: In [2022-03-15 19:00:00, 2022-03-15 20:00:00), google trends is 50
+
+    :param start_dt: The start datetime to get data for. granularity is hourly. minutes, seconds and microseconds will be ignored.
+    :param end_dt: The end datetime to get data for. granularity is hourly. minutes, seconds and microseconds will be ignored.
     :param retries: The number of retries to get data. -1 means infinite retries.
     """
-    start_dt = start_dt.replace(tzinfo=tz)
-    end_dt = min(datetime.now(tz=tz), end_dt.replace(tzinfo=tz))
+    start_dt = start_dt.replace(tzinfo=tz).replace(microsecond=0, second=0, minute=0)
+    end_dt = min(datetime.now(tz=tz), end_dt.replace(tzinfo=tz)).replace(microsecond=0, second=0, minute=0)
     cookies = cookies or await _api.get_cookies()
     if proxy:
         os.environ['ALL_PROXY'] = proxy
@@ -207,7 +213,6 @@ async def hourly_data(
     index = utils.find_index(result_item_lst, lambda item: item[0] >= int(end_dt.timestamp()))
     result_item_lst = result_item_lst[:index]
 
-    return result_item_lst
     # Normalize to [0, 100]
-    # max_value = max(v for _, v in result_item_lst)
-    # return [(t, v / max_value * 100) for t, v in result_item_lst]
+    max_value = max(v for _, v in result_item_lst)
+    return [(t, v / max_value * 100) for t, v in result_item_lst]
