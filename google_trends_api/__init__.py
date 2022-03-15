@@ -126,7 +126,11 @@ async def hourly_data(
 ):
     """
     Get hourly google trends data for a keyword.
-    All trends value are based on the first 7 days from start_datetime.
+    All trends value are based on max value between [start_dt, end_dt).
+
+    [(ts_1, 50), (ts_2, 100), (ts_3, 78)] returned by hourly_data means:
+    At ts_1, the search volume is half of search volume of ts_2.
+    At ts_3, the search volume is 78% of search volume of ts_2.
 
     :param retries: The number of retries to get data. -1 means infinite retries.
     """
