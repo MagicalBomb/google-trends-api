@@ -207,6 +207,7 @@ async def hourly_data(
     index = utils.find_index(result_item_lst, lambda item: item[0] >= int(end_dt.timestamp()))
     result_item_lst = result_item_lst[:index]
 
+    return result_item_lst
     # Normalize to [0, 100]
-    max_value = max(v for _, v in result_item_lst)
-    return [(t, v / max_value * 100) for t, v in result_item_lst]
+    # max_value = max(v for _, v in result_item_lst)
+    # return [(t, v / max_value * 100) for t, v in result_item_lst]
